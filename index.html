@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SeismoID — Monitoring & Analisis Gempa Indonesia</title>
+<meta name="description" content="Monitoring gempa realtime dan analisis pola kegempaan Indonesia berbasis data BMKG & USGS." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M5 17h5l2-6 4 11 3-8 2 3h6' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<script>
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("seismo-theme"); } catch (e) {}
+    if (!t) t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+<link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <a class="brand" href="#monitor" data-tab="monitor">
+      <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 17h5l2-6 4 11 3-8 2 3h6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="brand-text">Seismo<b>ID</b></span>
+    </a>
+    <nav class="nav" aria-label="Navigasi utama">
+      <a href="#monitor" data-tab="monitor" class="active">Gempa Terkini</a>
+      <a href="#analisis" data-tab="analisis">Analisis</a>
+      <a href="#prediksi" data-tab="prediksi">Prediksi</a>
+      <a href="#evaluasi" data-tab="evaluasi">Evaluasi Model</a>
+      <a href="#tentang" data-tab="tentang">Tentang</a>
+    </nav>
+    <div class="header-actions">
+      <span class="conn" id="conn" title="Status sumber data"><i></i><span>Menghubungkan…</span></span>
+      <button class="icon-btn" id="btn-refresh" title="Muat ulang data" aria-label="Muat ulang data">
+        <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-theme" title="Ganti mode terang/gelap" aria-label="Ganti mode terang/gelap">
+        <svg class="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+<!-- ================= GEMPA TERKINI ================= -->
+<section id="tab-monitor" class="page active">
+  <div class="page-head">
+    <div>
+      <h1>Gempa Terkini</h1>
+      <p class="lead">Data gempa terbaru di wilayah Indonesia dari BMKG dan USGS.</p>
+    </div>
+    <p class="updated" id="updated"></p>
+  </div>
+
+  <div class="card featured" id="bmkg-latest"><div class="empty">Memuat data BMKG…</div></div>
+
+  <div class="stats" id="kpi-live"></div>
+
+  <div class="layout-map">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2>Peta Sebaran</h2>
+          <p class="sub" id="map-caption">Memuat…</p>
+        </div>
+        <div class="toolbar">
+          <div class="segmented" id="seg-source" role="group" aria-label="Sumber data">
+            <button data-v="bmkg" class="on">BMKG</button>
+            <button data-v="usgs">USGS</button>
+          </div>
+          <div class="segmented" id="seg-window" role="group" aria-label="Rentang waktu">
+            <button data-v="1">24 jam</button>
+            <button data-v="7">7 hari</button>
+            <button data-v="30" class="on">30 hari</button>
+          </div>
+        </div>
+      </div>
+      <div id="map-live" class="map"></div>
+      <div class="legend">
+        <span class="legend-label">Kedalaman:</span>
+        <span><i class="dot d-s"></i>Dangkal (&lt; 70 km)</span>
+        <span><i class="dot d-m"></i>Menengah (70–300 km)</span>
+        <span><i class="dot d-d"></i>Dalam (&gt; 300 km)</span>
+        <span class="legend-note">Ukuran lingkaran menunjukkan magnitudo</span>
+      </div>
+    </div>
+    <div class="card list-card">
+      <div class="card-header"><h2>Daftar Gempa</h2><span class="sub" id="feed-count"></span></div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+
+  <div class="card" id="detail" hidden></div>
+</section>
+
+<!-- ================= ANALISIS ================= -->
+<section id="tab-analisis" class="page">
+  <div class="page-head">
+    <div>
+      <h1>Analisis Historis</h1>
+      <p class="lead">Pola kegempaan Indonesia 2015–2026 dari katalog USGS (10.844 gempa, M ≥ 4,5).</p>
+    </div>
+  </div>
+  <div class="card filters">
+    <label>Dari tahun<select id="f-y0"></select></label>
+    <label>Sampai tahun<select id="f-y1"></select></label>
+    <label>Magnitudo minimum
+      <span class="range"><input type="range" id="f-mag" min="4.5" max="7" step="0.1" value="4.5" /><output id="f-mag-v">4,5</output></span>
+    </label>
+    <label>Kedalaman
+      <select id="f-depth">
+        <option value="all">Semua</option><option value="s">Dangkal (&lt; 70 km)</option>
+        <option value="m">Menengah (70–300 km)</option><option value="d">Dalam (&gt; 300 km)</option>
+      </select>
+    </label>
+    <button class="btn" id="btn-clear-area" hidden>Hapus filter wilayah</button>
+  </div>
+  <div class="stats" id="kpi-hist"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><h2>Peta Kepadatan Gempa</h2><p class="sub">Klik peta untuk melihat wilayah tertentu (radius 150 km)</p></div></div>
+      <div id="map-hist" class="map"></div>
+      <div class="legend"><span class="legend-label">Jumlah gempa per kotak 0,5°:</span><span class="ramp"></span><span id="ramp-max"></span></div>
+    </div>
+    <div class="col">
+      <div class="card"><div class="card-header"><h2>Jumlah Gempa per Bulan</h2></div><div class="chart"><canvas id="ch-monthly"></canvas></div></div>
+      <div class="card"><div class="card-header"><div><h2>Sebaran Magnitudo (Gutenberg–Richter)</h2><p class="sub" id="gr-note"></p></div></div><div class="chart"><canvas id="ch-gr"></canvas></div></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card"><div class="card-header"><h2>Sebaran Kedalaman</h2></div><div class="chart"><canvas id="ch-depth"></canvas></div></div>
+    <div class="card"><div class="card-header"><h2>Wilayah Paling Aktif</h2></div><div id="top-regions" class="rank"></div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div><h2>20 Gempa Terbesar</h2><p class="sub">Beserta estimasi Model A sebagai pembanding magnitudo tercatat</p></div></div>
+    <div class="table-wrap"><table class="table" id="tbl-big"></table></div>
+  </div>
+</section>
+
+<!-- ================= PREDIKSI ================= -->
+<section id="tab-prediksi" class="page">
+  <div class="page-head">
+    <div>
+      <h1>Prediksi Magnitudo</h1>
+      <p class="lead">Coba dua model dari tugas akhir. Model memperkirakan <b>magnitudo</b> suatu gempa, bukan meramal kapan atau di mana gempa akan terjadi.</p>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><span class="tag tag-b">Model B</span><h2>Estimasi dari Lokasi</h2>
+        <p class="sub">Cukup masukkan lokasi, kedalaman, dan waktu. Riwayat gempa di sekitarnya dihitung otomatis.</p></div></div>
+      <div class="form">
+        <label>Lintang<input type="number" step="0.01" id="b-lat" value="-8.4" /></label>
+        <label>Bujur<input type="number" step="0.01" id="b-lon" value="116.2" /></label>
+        <label>Kedalaman (km)<input type="number" step="1" id="b-depth" value="15" /></label>
+        <label>Waktu (UTC)<input type="datetime-local" id="b-time" /></label>
+      </div>
+      <div id="map-pick" class="map map-sm"></div>
+      <p class="hint">Klik peta untuk memilih lokasi.</p>
+      <div class="actions"><button class="btn btn-primary" id="b-run">Hitung estimasi</button><button class="btn" id="b-now">Pakai waktu sekarang</button></div>
+      <div id="b-out"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><span class="tag tag-a">Model A</span><h2>Audit Magnitudo Katalog</h2>
+        <p class="sub">Memakai data kualitas pengukuran dari USGS untuk memeriksa apakah magnitudo yang tercatat wajar.</p></div></div>
+      <label class="field">Isi otomatis dari gempa USGS<select id="a-pick"><option value="">Pilih gempa…</option></select></label>
+      <details class="adv">
+        <summary>Lihat / ubah 17 nilai masukan</summary>
+        <div class="form form-3" id="a-form"></div>
+      </details>
+      <div class="actions"><button class="btn btn-primary" id="a-run">Hitung estimasi</button><button class="btn" id="a-reset">Isi nilai tengah</button></div>
+      <div id="a-out"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div><h2>Audit Banyak Gempa Sekaligus</h2>
+        <p class="sub">Unggah file CSV dari katalog USGS. Gempa yang magnitudonya berbeda lebih dari 0,3 dari estimasi akan ditandai.</p></div>
+      <div class="toolbar">
+        <label class="btn">Unggah CSV<input type="file" id="csv-in" accept=".csv,text/csv" hidden /></label>
+        <button class="btn" id="csv-live">Pakai data USGS terbaru</button>
+        <button class="btn btn-primary" id="csv-dl" disabled>Unduh hasil</button>
+      </div>
+    </div>
+    <div id="csv-sum" class="summary"></div>
+    <div class="table-wrap"><table class="table" id="csv-tbl"></table></div>
+  </div>
+</section>
+
+<!-- ================= EVALUASI ================= -->
+<section id="tab-evaluasi" class="page">
+  <div class="page-head">
+    <div>
+      <h1>Evaluasi Model</h1>
+      <p class="lead" id="eval-lead"></p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>Ringkasan Kinerja</h2></div>
+    <div class="table-wrap"><table class="table" id="tbl-summary"></table></div>
+    <p class="hint">R² mendekati 1 berarti prediksi makin tepat. RMSE dan MAE adalah rata-rata kesalahan dalam satuan magnitudo (makin kecil makin baik).</p>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>Magnitudo Asli vs Prediksi</h2>
+        <div class="segmented" id="seg-scatter"><button data-v="a" class="on">Model A</button><button data-v="b">Model B</button></div></div>
+      <div class="chart chart-lg"><canvas id="ch-scatter"></canvas></div>
+      <p class="hint" id="scatter-note"></p>
+    </div>
+    <div class="col">
+      <div class="card"><div class="card-header"><div><h2>Ketepatan dalam Batas Toleransi</h2><p class="sub">Persentase prediksi dengan selisih ≤ batas</p></div></div><div class="chart"><canvas id="ch-tol"></canvas></div></div>
+      <div class="card"><div class="card-header"><div><h2>Kestabilan per Tahun</h2><p class="sub">Nilai R² saat diuji pada tiap tahun</p></div></div><div class="chart"><canvas id="ch-roll"></canvas></div></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>Kesalahan per Rentang Magnitudo</h2></div>
+      <div class="table-wrap"><table class="table" id="tbl-bin"></table></div>
+      <p class="hint">Selisih = rata-rata selisih mutlak. Bias negatif berarti model cenderung memperkirakan lebih kecil dari aslinya, terutama pada gempa besar.</p>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Fitur Paling Berpengaruh</h2>
+        <div class="segmented" id="seg-imp"><button data-v="A" class="on">Model A</button><button data-v="B">Model B</button></div></div>
+      <div class="chart"><canvas id="ch-imp"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Kesimpulan</h2>
+    <ul class="list">
+      <li><b>Model A</b> menjelaskan sekitar 75% variasi magnitudo dan memangkas kesalahan sekitar 50% dibanding baseline. Cocok untuk memeriksa magnitudo di katalog.</li>
+      <li><b>Model B</b> hanya sedikit lebih baik dari baseline. Magnitudo memang sulit ditebak hanya dari lokasi dan riwayat gempa sekitar.</li>
+      <li>Angka di halaman ini berasal dari pengujian jujur: model dilatih pada 80% data terlama dan diuji pada 20% data terbaru.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= TENTANG ================= -->
+<section id="tab-tentang" class="page">
+  <div class="page-head"><div><h1>Tentang</h1></div></div>
+  <div class="grid-2">
+    <div class="card">
+      <span class="tag">Tugas Akhir · Kelompok 1</span>
+      <h2 class="title-lg">Sistem Monitoring Realtime dan Analisis Pola Kegempaan Indonesia Berbasis Data BMKG dan USGS</h2>
+      <p class="sub">Program Studi Informatika, Fakultas Matematika dan Ilmu Pengetahuan Alam</p>
+      <p>Dosen Pengampu: <b>I Wayan Supriana, S.Si., M.Cs.</b></p>
+      <table class="table">
+        <thead><tr><th>No</th><th>Nama</th><th>NIM</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Kadek Adika Ananda Aryana</td><td>2408561015</td></tr>
+          <tr><td>2</td><td>I Made Andhika Gitra Nugraha</td><td>2408561133</td></tr>
+          <tr><td>3</td><td>I Kadek Dhiyo Dewangga</td><td>2408561137</td></tr>
+          <tr><td>4</td><td>Putu Indira Agustin Harsana</td><td>2508561154</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Sumber Data</h2>
+      <ul class="list">
+        <li><b>BMKG</b>: data terbuka gempa terbaru, gempa M 5+ dan gempa dirasakan (data.bmkg.go.id).</li>
+        <li><b>USGS</b>: katalog gempa M ≥ 4,5 wilayah Indonesia (earthquake.usgs.gov).</li>
+        <li>Peta dasar: © OpenStreetMap contributors, © CARTO.</li>
+      </ul>
+      <h2>Cara Kerja</h2>
+      <ul class="list">
+        <li>Model dari file <code>.joblib</code> diubah ke JSON dan dijalankan di browser. Hasilnya sama persis dengan scikit-learn.</li>
+        <li>Rentang 90% pada hasil prediksi dihitung dari kesalahan model pada data uji.</li>
+        <li>Jika sumber data tidak bisa dihubungi, aplikasi otomatis memakai data arsip.</li>
+      </ul>
+      <div class="alert">Aplikasi ini adalah prototipe akademik, bukan sistem peringatan dini. Informasi resmi gempa dan tsunami hanya dari BMKG.</div>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="footer"><div class="container">SeismoID · Kelompok 1 · Sumber data: BMKG &amp; USGS</div></footer>
+
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/vendor/chart.umd.js"></script>
+<script src="/assets/model.js"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>
