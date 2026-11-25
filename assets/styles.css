@@ -278,3 +278,6 @@ input[type="range"] { accent-color: var(--primary); width: 140px; }
   .map { height: 400px; }
   .legend-note { margin-left: 0; }
 }
+
+/* cadangan OSM saat tema gelap */
+.tiles-osm[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9); }
