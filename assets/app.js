@@ -159,22 +159,11 @@
   }
 
   /* ---------- theme & maps ---------- */
-  let tileFallback = false;
-  const tileURL = () => tileFallback
-    ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-    : `https://{s}.basemaps.cartocdn.com/${document.documentElement.dataset.theme === "dark" ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`;
+  // Peta dasar OpenStreetMap (tanpa API key). Tema gelap memakai filter CSS pada tile.
+  const tileURL = () => "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   function baseMap(el, opts = {}) {
     const m = L.map(el, { preferCanvas: true, scrollWheelZoom: true, ...opts }).setView([-2.5, 118], 5);
-    const t = L.tileLayer(tileURL(), { subdomains: "abc", maxZoom: 12, attribution: "© OpenStreetMap © CARTO" }).addTo(m);
-    // Bila tile CARTO gagal dimuat (diblokir jaringan/ad-blocker), pindah ke OpenStreetMap.
-    let errs = 0, okTiles = 0;
-    t.on("tileload", () => { okTiles++; });
-    t.on("tileerror", () => {
-      if (tileFallback || okTiles > 0 || ++errs < 3) return;
-      tileFallback = true;
-      document.documentElement.classList.add("tiles-osm");
-      S.tiles.forEach((l) => l.setUrl(tileURL()));
-    });
+    const t = L.tileLayer(tileURL(), { maxZoom: 12, attribution: "© OpenStreetMap contributors" }).addTo(m);
     S.tiles.push(t);
     return m;
   }
